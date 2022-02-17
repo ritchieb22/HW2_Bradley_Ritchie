@@ -1,0 +1,119 @@
+---
+title: "HW2_Bradley_Ritchie"
+author: "Ritchie Bradley"
+date: "2/16/2022"
+output: html_document
+knit: (function(input_file, encoding) {
+  out_dir <- 'docs';
+  rmarkdown::render(input_file,
+ encoding=encoding,
+ output_file=file.path(dirname(input_file), out_dir, 'index.html'))})
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+I installed a package called ``tidyquant`` to pull S&P500 data in a much easier manner than I initially started with.``tidyquant`` does have its own built in functions to make very nice plots, but I only used it to get stock prices over a roughly 2-year period. As I am sure you all know, the stock market is heavily analyzed by major companies and determined individuals alike to try and predict what might happen (and ideally make a ton of money in the process). The plots I make will not be nearly as advanced or technical as many out there, but are a way to examine the scope of the stock market and allow for a little more control and personal style on the plots. 
+
+
+First, I used the ``tidyquant`` package to retrieve the data from a selected batch of top 10 companies.
+```{r}
+#install.packages("tidyquant")
+library(tidyquant)
+library(tidyverse)
+
+```
+```{r}
+AAPL <- tq_get("AAPL", get = "stock.prices", from = "2020-01-01", to = "2022-02-16") #to retrieve Apple's data from the given time period
+MSFT <- tq_get("MSFT", get = "stock.prices", from = "2020-01-01", to = "2022-02-16")#to retrieve Microsoft's data from the given time period
+AMZN <- tq_get("AMZN", get = "stock.prices", from = "2020-01-01", to = "2022-02-16")#to retrieve Amazon's data from the given time period
+GOOGL <- tq_get("GOOGL", get = "stock.prices", from = "2020-01-01", to = "2022-02-16")#to retrieve Google's data from the given time period
+TSLA <- tq_get("TSLA", get = "stock.prices", from = "2020-01-01", to = "2022-02-16")#to retrieve Tesla's data from the given time period (not technically top 5, but fun to include.
+
+library(dplyr)
+
+top5 <- bind_rows(AAPL, MSFT, AMZN, GOOGL, TSLA) #close to the actual top 5 stocks in the S&P500, but not quite. I just chose some of my favorites
+#head(top5)
+
+```
+
+I initially tried using a ggplot that would be converted to a plotly graph for interactivity. I had to scrap this plan because I ran into severe issues with my graphs doing it this way. I could get it to make two separate charts, but when I combined them, the range slider did not work properly and it smushed my charts too badly. I tried for a few hours, but working directly with plotly gave much better results.
+
+```{r}
+p_top5 <- ggplot(data = top5, mapping =aes(
+  x= date, y = volume, color  = symbol))+ geom_line()+ ylab("Trade Volume") + 
+  xlab("Date")+ ggtitle("Trade Volume of 5 Major Companies from 01-01-2020 to 01-01-2022")+ scale_x_date(
+        breaks = scales::breaks_width("5 days"))
+p_top5
+```
+
+```{r}
+library("plotly")
+library("htmlwidgets")
+#p_top5_plotly <- ggplotly(p_top5)
+
+#p_top5_plotly2 <- p_top5_plotly %>% 
+ # group_by(symbol) %>%
+  #rangeslider() %>%
+  #layout(title = NA, xaxis = list(
+   # rangeselector = list(
+    #  buttons = list(
+     #     count = 1,
+      #    label = "1 mo",
+       #   step = "month",
+        #  stepmode = "backward"), rangeslider = list(type = "date"))))     I was trying everything past rangeslider as a last ditch effort.
+#p_top5_plotly2
+```
+
+
+Major stocks tend to have significant market volume, while closing price is an interesting snapshot in time for each stock. To create the market volume plot, I used the ``plot_ly`` function directly instead of first using ``ggplot``:
+```{r}
+t5V_plotly<- plot_ly(top5, 
+        x = ~date, 
+        y = ~volume,
+        color = ~symbol,
+        type = 'scatter', 
+        mode = 'lines')
+t5V_plotly <- t5V_plotly %>%
+  rangeslider() %>%
+  layout(hovermode = "x", 
+         xaxis = list(title=NA), 
+         yaxis = list(title = "Trade Volume"))
+ht5V_plotly <- highlight_key(t5V_plotly, ~symbol)#to enable highlighting functionality
+#ht5V_plotly
+```
+
+To create a plot of the stock closing prices I did the same thing:
+```{r}
+t5P_plotly<- plot_ly(top5, 
+        x = ~date, 
+        y = ~close,
+        color = ~symbol,
+        type = 'scatter', 
+        mode = 'lines')
+t5P_plotly <- t5P_plotly %>%
+  rangeslider() %>%
+  layout(hovermode = "x", 
+         xaxis = list(title=NA), 
+         yaxis = list(title = "Closing Value"))
+#t5P_plotly
+ht5P_plotly <- highlight_key(t5P_plotly, ~symbol) #to enable highlighting functionality
+#ht5P_plotly
+```
+
+To combine them, I used the subplot function. I had to do 2 rows to make this plot work. 
+```{r}
+t5facet_plotly <- subplot(list(ht5V_plotly,ht5P_plotly),
+                              nrows = 2, 
+                              shareX = TRUE,
+                              titleX = FALSE) %>% 
+  rangeslider() %>%
+  layout(hovermode = "x", title = list(text="Trade Volume and Closing Price of 5 Major Companies from 01-01-2020 to 02-16-2022", font = list(size=12), y = .98, x = 0), plot_bgcolor='#E6E6FA', #plot_bgcolor allows us to choose whatever RGB value we want for the background
+         xaxis = list(title=list(text='Month', font = list(size = 10)),
+         yaxis = list(title=list(text='Closing Price (bottom), Volume (top)',font = list(size = 10), standoff = 0)))) 
+t5facet_plotly
+```
+
+There are some obvious issues with this plot, namely the lack of an axis title for the volume graph (top) and closing price graph (bottom). It also lists each stock twice, which adds to the complexity. It would be better if I could combine the Volume and Stock Closing Price for each company on the legend so that you can select the stock you don't want and remove it from the graph, but I've not figured that functionality out yet. 
+
